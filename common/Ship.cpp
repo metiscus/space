@@ -2,12 +2,31 @@
 
 const float DefaultShield = 100.0f;
 const float DefaultHealth = 100.0f;
+const float DefaultInertia = 1.0f;
 
 Ship::Ship(std::string name)
 {
     this->name = name;
     shield = DefaultShield;
     health = DefaultHealth;
+    orientation = 0.0;
+    angularVelocity = 0.0f;
+    torque = 0.0f;
+}
+
+const float& Ship::GetOrientation() const
+{
+    return orientation;
+}
+
+void Ship::ApplyTorque(float torque)
+{
+    torque += torque;
+}
+
+float Ship::GetAngularVelocity() const
+{
+    return angularVelocity;
 }
 
 void Ship::ApplyDamage(float dmg)
@@ -53,7 +72,25 @@ const std::string& Ship::GetName() const
     return name;
 }
 
-unsigned Ship::GetScore() const
+uint32_t Ship::GetScore() const
 {
     return score;
 }
+
+ void Ship::Update(float dt)
+ {
+     Object::Update(dt);
+
+     // add in angular mechanics
+     if(GetIsStatic())
+     {
+         torque = 0.0f;
+         angularVelocity = 0.0f;
+     }
+     else
+     {
+         float a = torque / DefaultInertia;
+         orientation += angularVelocity * dt + 0.5 * a * dt * dt;
+         angularVelocity += dt * a;
+     }
+ }

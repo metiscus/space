@@ -13,6 +13,7 @@ class Object
     float mass;
     float radius;
     bool isStatic;
+
 public:
     Object();
     virtual ~Object() = default;
@@ -30,7 +31,7 @@ public:
     void            SetRadius(const float& radius);
     void            SetForce(const Vector3f& force);
     void            AddForce(const Vector3f& force);
-    virtual void    Update(float dt);
+    virtual void    Update(float dt) = 0;
 };
 
 #endif // OBJECT_H_INCLUDED

@@ -2,7 +2,7 @@ COPTS= -I. -Icommon `pkg-config --cflags sdl2`
 
 CXX := g++
 CXXFLAGS := -g -Wall -Wextra -std=c++11  $(COPTS)
-LDFLAGS := `pkg-config --libs sdl2`
+LDFLAGS := `pkg-config --libs sdl2` -lzmq -pthread
 
 # Rule for building .o from .cpp with dependency generation
 %.o: %.cpp
@@ -14,7 +14,7 @@ LDFLAGS := `pkg-config --libs sdl2`
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
-default: libcommon.a
+default: libcommon.a serverBin
 
 COMMON_SRC =\
 	common/Object.h common/Object.cpp\
@@ -26,6 +26,9 @@ COMMON_OBJ = $(COMMON_CPP:.cpp=.o)
 libcommon.a: $(COMMON_OBJ)
 	ar -rcs libcommon.a $(COMMON_OBJ)
 
+serverBin: libcommon.a server/server.o
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o serverBin server/server.o -L. -lcommon
+
 clean:
-	-rm -f libcommon.a $(COMMON_OBJ)
+	-rm -f libcommon.a $(COMMON_OBJ) serverBin
 	-find -iname "*.d" -exec rm -f {} \; -print
