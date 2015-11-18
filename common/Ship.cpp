@@ -19,7 +19,7 @@ const float& Ship::GetOrientation() const
     return orientation;
 }
 
-void Ship::ApplyTorque(float torque)
+void Ship::AddTorque(float torque)
 {
     torque += torque;
 }

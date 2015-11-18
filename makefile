@@ -14,7 +14,7 @@ LDFLAGS := `pkg-config --libs sdl2` -lzmq -pthread
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
-default: libcommon.a serverBin
+default: libcommon.a serverBin api_test
 
 COMMON_SRC =\
 	common/Object.h common/Object.cpp\
@@ -29,6 +29,20 @@ libcommon.a: $(COMMON_OBJ)
 serverBin: libcommon.a server/server.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o serverBin server/server.o -L. -lcommon
 
+api_test: libcommon.a client/api_test.o
+		$(CXX) $(CXXFLAGS) $(LDFLAGS) -o api_test client/api_test.o -L. -lcommon
+
 clean:
 	-rm -f libcommon.a $(COMMON_OBJ) serverBin
 	-find -iname "*.d" -exec rm -f {} \; -print
+	-rm -f server/server.o client/api_test.o
+
+.PHONY: kill
+kill:
+	-kill `pgrep serverBin`
+	-kill `pgrep api_test`
+
+test:
+	$(MAKE) && $(MAKE) kill
+	./serverBin&
+	./api_test

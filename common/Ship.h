@@ -20,7 +20,7 @@ public:
     virtual ~Ship() = default;
 
     const float& GetOrientation() const;
-    void ApplyTorque(float torque);
+    void AddTorque(float torque);
     float GetAngularVelocity() const;
     void ApplyDamage(float dmg);
     void AddScore(unsigned pts);
