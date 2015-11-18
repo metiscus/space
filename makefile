@@ -35,7 +35,7 @@ api_test: libcommon.a client/api_test.o
 clean:
 	-rm -f libcommon.a $(COMMON_OBJ) serverBin
 	-find -iname "*.d" -exec rm -f {} \; -print
-	-rm -f server/server.o client/api_test.o
+	-rm -f server/server.o client/api_test.o api_test
 
 .PHONY: kill
 kill:
