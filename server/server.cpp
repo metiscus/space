@@ -7,7 +7,6 @@
 #include <vector>
 #include <zmq.hpp>
 #include <memory>
-#include <functional>
 #include "Messages.h"
 #include <thread>
 #include <mutex>
@@ -49,23 +48,8 @@ int main(int argc, char** argv)
             itr->Update(0.01);
             Ship* pShip = dynamic_cast<Ship*>(itr.get());
             if(pShip){
-                svr_player_update.updates[playerCount].valid = true;
                 svr_player_update.updates[playerCount].player = player_hash_fn(pShip->GetName());
-
-                auto pos = pShip->GetPosition();
-                svr_player_update.updates[playerCount].position[0] = pos[0];
-                svr_player_update.updates[playerCount].position[1] = pos[1];
-                svr_player_update.updates[playerCount].position[2] = pos[2];
-
-                auto vel = pShip->GetVelocity();
-                svr_player_update.updates[playerCount].velocity[0] = vel[0];
-                svr_player_update.updates[playerCount].velocity[1] = vel[1];
-                svr_player_update.updates[playerCount].velocity[2] = vel[2];
-
-                svr_player_update.updates[playerCount].orientation = pShip->GetOrientation();
-                svr_player_update.updates[playerCount].angularVelocity = pShip->GetAngularVelocity();
-
-                ++playerCount;
+                pShip->GetUpdate(svr_player_update.updates[playerCount++]);
             }
         }
 

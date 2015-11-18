@@ -2,6 +2,7 @@
 #define SHIP_H_INCLUDED
 
 #include "Object.h"
+#include "Messages.h"
 #include <string>
 #include <cstdint>
 
@@ -32,6 +33,8 @@ public:
     uint32_t GetScore() const;
 
     virtual void Update(float dt);
+
+    void GetUpdate(ServerPlayerUpdate& message) const;
 };
 
 #endif // SHIP_H_INCLUDED

@@ -7,7 +7,6 @@ const uint32_t MaxPlayerCount = 10;
 
 struct ServerPlayerUpdate
 {
-    bool valid;
     uint32_t player;
     float position[3];
     float velocity[3];

@@ -1,4 +1,5 @@
 #include "Ship.h"
+#include <functional>
 
 const float DefaultShield = 100.0f;
 const float DefaultHealth = 100.0f;
@@ -93,4 +94,20 @@ uint32_t Ship::GetScore() const
          orientation += angularVelocity * dt + 0.5 * a * dt * dt;
          angularVelocity += dt * a;
      }
+ }
+
+ void Ship::GetUpdate(ServerPlayerUpdate& message) const
+ {
+     const std::hash<std::string> player_hash_fn;
+     message.player          = player_hash_fn(GetName());
+     Vector3f vec = GetPosition();
+     message.position[0] = vec[0];
+     message.position[1] = vec[1];
+     message.position[2] = vec[2];
+     vec = GetVelocity();
+     message.velocity[0] = vec[0];
+     message.velocity[1] = vec[1];
+     message.velocity[2] = vec[2];
+     message.orientation     = GetOrientation();
+     message.angularVelocity = GetAngularVelocity();
  }
