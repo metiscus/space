@@ -46,6 +46,7 @@ int main(int argc, char** argv)
         g_objects_mtx.lock();
         for(auto itr : g_objects)
         {
+            itr->Update(0.01);
             Ship* pShip = dynamic_cast<Ship*>(itr.get());
             if(pShip){
                 svr_player_update.updates[playerCount].valid = true;
@@ -99,7 +100,7 @@ void command_thread()
     while(true)
     {
         log("calling receive");
-        zmq::message_t message;
+        zmq::message_t message(sizeof(ClientMessage)*10);
         command.recv(&message);
         if(message.size() == sizeof(ClientMessage))
         {

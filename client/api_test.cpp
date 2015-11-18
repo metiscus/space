@@ -31,6 +31,9 @@ int main(int argc, char** argv)
 
     ClientMessage updateMessage;
     updateMessage.type = PlayerUpdateMsg;
+    updateMessage.update.force[0] = 0.0;
+    updateMessage.update.force[1] = 0.0;
+    updateMessage.update.force[2] = 10.0;
     strcpy(updateMessage.update.name, "api test player");
 
     zmq::socket_t command (*g_context, ZMQ_REQ);
@@ -52,13 +55,20 @@ int main(int argc, char** argv)
     gamestate.setsockopt(ZMQ_SUBSCRIBE, &PlayerUpdateMagic, sizeof(PlayerUpdateMagic));
     for(int i=0; i<10; ++i)
     {
-        zmq::message_t state_msg;
+        zmq::message_t state_msg(2 * sizeof(ServerPlayerUpdateMsg));
         gamestate.recv(&state_msg);
         if(state_msg.size() == sizeof(ServerPlayerUpdateMsg))
         {
             ServerPlayerUpdateMsg svr_update;
             memcpy(&svr_update, state_msg.data(), state_msg.size()); // warning overflow possible
             log("state message contained %u states", svr_update.player_count);
+            if(svr_update.player_count > 0)
+            {
+                log("state 0: position < %f %f %f >",
+                    svr_update.updates[0].position[0],
+                    svr_update.updates[0].position[1],
+                    svr_update.updates[0].position[2]);
+            }
         }
     }
     return 0;

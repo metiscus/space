@@ -7,6 +7,7 @@ Object::Object()
     , mass(1.0)
     , radius(1.0)
     , isStatic(false)
+    , linear_dampening(0.01)
 {
 
 }
@@ -76,6 +77,11 @@ void Object::AddForce(const Vector3f& force)
     this->force += force;
 }
 
+void Object::SetLinearDampening(const float& dampening)
+{
+    linear_dampening = dampening;
+}
+
 void Object::Update(float dt)
 {
     if(this->isStatic)
@@ -87,5 +93,6 @@ void Object::Update(float dt)
         Vector3f a = this->force / this->mass;
         this->position += this->velocity * dt + 0.5f * a * dt*dt;
         this->velocity += a * dt;
+        this->velocity *= (1.0f - dt * linear_dampening);
     }
 }

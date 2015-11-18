@@ -13,6 +13,7 @@ class Object
     float mass;
     float radius;
     bool isStatic;
+    float linear_dampening;
 
 public:
     Object();
@@ -31,6 +32,7 @@ public:
     void            SetRadius(const float& radius);
     void            SetForce(const Vector3f& force);
     void            AddForce(const Vector3f& force);
+    void            SetLinearDampening(const float& dampening);
     virtual void    Update(float dt) = 0;
 };
 
