@@ -22,6 +22,7 @@ public:
 
     const float& GetOrientation() const;
     void AddTorque(float torque);
+    float GetTorque() const;
     float GetAngularVelocity() const;
     void ApplyDamage(float dmg);
     void AddScore(unsigned pts);
@@ -34,7 +35,8 @@ public:
 
     virtual void Update(float dt);
 
-    void GetUpdate(ServerPlayerUpdate& message) const;
+    void GetServerUpdateMessage(ServerShipUpdate& message) const;
+    void GetClientUpdateMessage(ClientShipUpdate& message) const;
 };
 
 #endif // SHIP_H_INCLUDED

@@ -31,10 +31,10 @@ int main(int argc, char** argv)
 
     ClientMessage updateMessage;
     updateMessage.type = PlayerUpdateMsg;
-    updateMessage.update.force[0] = 0.0;
-    updateMessage.update.force[1] = 0.0;
-    updateMessage.update.force[2] = 10.0;
-    strcpy(updateMessage.update.name, "api test player");
+
+    Ship *pShip = new Ship("api test player");
+    pShip->AddForce(Vector3f(0.0, 0.0, 10.0));
+    pShip->GetClientUpdateMessage(updateMessage.update);
 
     zmq::socket_t command (*g_context, ZMQ_REQ);
     command.connect("tcp://localhost:5556");
@@ -68,6 +68,10 @@ int main(int argc, char** argv)
                     svr_update.updates[0].position[0],
                     svr_update.updates[0].position[1],
                     svr_update.updates[0].position[2]);
+                log("state 0: velocity < %f %f %f >",
+                    svr_update.updates[0].velocity[0],
+                    svr_update.updates[0].velocity[1],
+                    svr_update.updates[0].velocity[2]);
             }
         }
     }

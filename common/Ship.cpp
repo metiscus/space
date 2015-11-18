@@ -25,6 +25,11 @@ void Ship::AddTorque(float torque)
     torque += torque;
 }
 
+float Ship::GetTorque() const
+{
+    return torque;
+}
+
 float Ship::GetAngularVelocity() const
 {
     return angularVelocity;
@@ -83,23 +88,21 @@ uint32_t Ship::GetScore() const
      Object::Update(dt);
 
      // add in angular mechanics
-     if(GetIsStatic())
-     {
-         torque = 0.0f;
-         angularVelocity = 0.0f;
-     }
-     else
+     if(!GetIsStatic())
      {
          float a = torque / DefaultInertia;
          orientation += angularVelocity * dt + 0.5 * a * dt * dt;
          angularVelocity += dt * a;
      }
+
+     torque = 0.0f;
+     force[0] = force[1] = force[2] = 0.f;
  }
 
- void Ship::GetUpdate(ServerPlayerUpdate& message) const
+ void Ship::GetServerUpdateMessage(ServerShipUpdate& message) const
  {
      const std::hash<std::string> player_hash_fn;
-     message.player          = player_hash_fn(GetName());
+     message.ship_id     = player_hash_fn(GetName());
      Vector3f vec = GetPosition();
      message.position[0] = vec[0];
      message.position[1] = vec[1];
@@ -110,4 +113,15 @@ uint32_t Ship::GetScore() const
      message.velocity[2] = vec[2];
      message.orientation     = GetOrientation();
      message.angularVelocity = GetAngularVelocity();
+ }
+
+ void Ship::GetClientUpdateMessage(ClientShipUpdate& message) const
+ {
+     message.fired = false; //TODO: implement
+     strcpy(message.name, GetName().c_str());
+     Vector3f vec = GetForce();
+     message.force[0] = vec[0];
+     message.force[1] = vec[1];
+     message.force[2] = vec[2];
+     message.torque = GetTorque();
  }

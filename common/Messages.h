@@ -5,9 +5,9 @@
 
 const uint32_t MaxPlayerCount = 10;
 
-struct ServerPlayerUpdate
+struct ServerShipUpdate
 {
-    uint32_t player;
+    uint32_t ship_id;
     float position[3];
     float velocity[3];
     float orientation;
@@ -18,7 +18,7 @@ const uint32_t PlayerUpdateMagic = 0x00010203;
 struct ServerPlayerUpdateMsg
 {
     uint32_t player_count;
-    ServerPlayerUpdate updates[MaxPlayerCount];
+    ServerShipUpdate updates[MaxPlayerCount];
 };
 
 enum ClientMessageType
@@ -28,7 +28,7 @@ enum ClientMessageType
 
 const uint32_t PlayerNameMax = 100;
 
-struct ClientPlayerUpdateMsg
+struct ClientShipUpdate
 {
     bool fired;
     char name[PlayerNameMax];
@@ -41,7 +41,7 @@ struct ClientMessage
     uint32_t type;
     union
     {
-        ClientPlayerUpdateMsg update;
+        ClientShipUpdate update;
     };
 };
 

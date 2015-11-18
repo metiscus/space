@@ -7,6 +7,7 @@ using Eigen::Vector3f;
 
 class Object
 {
+protected:
     Vector3f position;
     Vector3f velocity;
     Vector3f force;

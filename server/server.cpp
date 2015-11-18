@@ -48,8 +48,7 @@ int main(int argc, char** argv)
             itr->Update(0.01);
             Ship* pShip = dynamic_cast<Ship*>(itr.get());
             if(pShip){
-                svr_player_update.updates[playerCount].player = player_hash_fn(pShip->GetName());
-                pShip->GetUpdate(svr_player_update.updates[playerCount++]);
+                pShip->GetServerUpdateMessage(svr_player_update.updates[playerCount++]);
             }
         }
 
