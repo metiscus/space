@@ -12,7 +12,7 @@
 #include <thread>
 #include <mutex>
 
-#include <stdarg.h>
+#include <cstdarg>
 
 std::mutex g_objects_mtx;
 typedef std::shared_ptr<Object> ObjectPtr;
@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     updateMessage.type = PlayerUpdateMsg;
 
     Ship *pShip = new Ship("api test player");
-    pShip->AddForce(Vector3f(0.0, 0.0, 10.0));
+    //pShip->AddForce(Vector3f(0.0, 0.0, 10.0));
     pShip->GetClientUpdateMessage(updateMessage.update);
 
     zmq::socket_t command (*g_context, ZMQ_REQ);

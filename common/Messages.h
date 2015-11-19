@@ -4,6 +4,7 @@
 #include <cstdint>
 
 const uint32_t MaxPlayerCount = 10;
+const uint32_t WorldSize = 1000;
 
 struct ServerShipUpdate
 {
@@ -12,6 +13,8 @@ struct ServerShipUpdate
     float velocity[3];
     float orientation;
     float angularVelocity;
+    float shield;
+    float health;
 };
 
 const uint32_t PlayerUpdateMagic = 0x00010203;

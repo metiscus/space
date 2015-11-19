@@ -10,7 +10,8 @@
 #include "Messages.h"
 #include <thread>
 #include <mutex>
-#include <stdarg.h>
+#include <cstdarg>
+#include <random>
 
 std::mutex g_objects_mtx;
 typedef std::shared_ptr<Object> ObjectPtr;
@@ -52,6 +53,27 @@ int main(int argc, char** argv)
             }
         }
 
+        // Check for collisions
+        for(auto a : g_objects)
+        {
+            for(auto b : g_objects)
+            {
+                if(a!=b)
+                {
+                    float distanceSqr = (b->GetPosition() - a->GetPosition()).squaredNorm();
+                    if(distanceSqr <= pow(a->GetRadius(), 2.0) + pow(b->GetRadius(), 2.0))
+                    {
+                        // the objects did collide
+                        Vector3f collision = (b->GetPosition() - a->GetPosition()) / (sqrt(distanceSqr) + 0.01);
+                        float speedA = a->GetVelocity().norm();
+                        float speedB = b->GetVelocity().norm();
+                        a->SetVelocity(-0.85 * speedA * collision);
+                        b->SetVelocity(0.85 * speedB * collision);
+                    }
+                }
+            }
+        }
+
         g_objects_mtx.unlock();
         svr_player_update.player_count = playerCount;
         if(playerCount != playerCountOld)
@@ -78,6 +100,9 @@ void command_thread()
     command.bind("tcp://*:5556");
 
     log("running command thread");
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
     zmq::message_t null_message(0);
     while(true)
@@ -109,9 +134,17 @@ void command_thread()
                 pShip = new Ship(name);
                 g_objects.push_back(ObjectPtr(pShip));
                 log("adding new ship");
+                // Randomize the start locations of new ships
+                std::uniform_real_distribution<> dis(0.0, WorldSize * 0.8);
+                pShip->SetPosition(Vector3f(dis(gen), dis(gen), 0.0));
             }
 
             // Update the ship
+
+            if(fabs(clientMsg.update.force[0]) > 0.0f || fabs(clientMsg.update.force[1]) > 0.0f)
+            {
+                log("force %f %f\n", clientMsg.update.force[0], clientMsg.update.force[1]);
+            }
             pShip->AddForce(Vector3f(clientMsg.update.force[0], clientMsg.update.force[1], clientMsg.update.force[2]));
             pShip->AddTorque(clientMsg.update.torque);
             g_objects_mtx.unlock();

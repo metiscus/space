@@ -113,6 +113,8 @@ uint32_t Ship::GetScore() const
      message.velocity[2] = vec[2];
      message.orientation     = GetOrientation();
      message.angularVelocity = GetAngularVelocity();
+     message.health = health;
+     message.shield = shield;
  }
 
  void Ship::GetClientUpdateMessage(ClientShipUpdate& message) const
