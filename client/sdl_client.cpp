@@ -146,6 +146,7 @@ int main(int argc, char** argv)
 
         // draw
         SDL_RenderClear(g_renderer);
+        //log("player count: %d", server_update_message.player_count);
         for(int i=0; i<server_update_message.player_count; ++i)
         {
             SDL_Rect dst;

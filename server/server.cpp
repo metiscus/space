@@ -147,7 +147,7 @@ void command_thread()
 
             struct timeval tv;
             gettimeofday(&tv, nullptr);
-            double now = tv.tv_sec + (double)tv.tv_usec / 1e6;
+            double now  = tv.tv_sec + (double)tv.tv_usec / 1e6;
             double then = (double)clientMsg.timestamp / 1e6;
             if(fabs(then-now) > 0.1)
             {
@@ -165,6 +165,10 @@ void command_thread()
                 {
                     break;
                 }
+                else
+                {
+                    pShip = nullptr;
+                }
             }
 
             // Ship was not in list
@@ -172,7 +176,6 @@ void command_thread()
             {
                 pShip = new Ship(name);
                 g_objects.push_back(ObjectPtr(pShip));
-                log("adding new ship");
                 // Randomize the start locations of new ships
                 std::uniform_real_distribution<> dis(0.0, WorldSize * 0.8);
                 pShip->SetPosition(Vector3f(dis(gen), dis(gen), 0.0));
