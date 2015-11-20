@@ -12,6 +12,7 @@
 #include <mutex>
 #include <cstdarg>
 #include <random>
+#include <sys/time.h>
 
 std::mutex g_objects_mtx;
 typedef std::shared_ptr<Object> ObjectPtr;
@@ -49,6 +50,33 @@ int main(int argc, char** argv)
             itr->Update(0.01);
             Ship* pShip = dynamic_cast<Ship*>(itr.get());
             if(pShip){
+                Vector3f velocity = pShip->GetVelocity();
+                Vector3f position = pShip->GetPosition();
+                if(position[0] > WorldSize)
+                {
+                    position[0] = WorldSize;
+                    velocity[0] = 0;
+                }
+                if(position[0] < 0.0)
+                {
+                    position[0] = 0;
+                    velocity[0] = 0;
+                }
+
+                if(position[1] > WorldSize)
+                {
+                    position[1] = WorldSize;
+                    velocity[1] = 0;
+                }
+                if(position[1] < 0.0)
+                {
+                    position[1] = 0;
+                    velocity[1] = 0;
+                }
+
+                pShip->SetPosition(position);
+                pShip->SetVelocity(velocity);
+
                 pShip->GetServerUpdateMessage(svr_player_update.updates[playerCount++]);
             }
         }
@@ -104,17 +132,28 @@ void command_thread()
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    zmq::message_t null_message(0);
     while(true)
     {
-        log("calling receive");
-        zmq::message_t message(sizeof(ClientMessage)*10);
+        zmq::message_t null_message(0);
+        static uint32_t serial = 0;
+        //log("calling receive");
+        zmq::message_t message(sizeof(ClientMessage));
         command.recv(&message);
         if(message.size() == sizeof(ClientMessage))
         {
             ClientMessage clientMsg;
             memcpy(&clientMsg, message.data(), sizeof(ClientMessage));
-            log("received a client message of type (%u)", clientMsg.type);
+            //log("received a client message of type (%u)", clientMsg.type);
+
+            struct timeval tv;
+            gettimeofday(&tv, nullptr);
+            double now = tv.tv_sec + (double)tv.tv_usec / 1e6;
+            double then = (double)clientMsg.timestamp / 1e6;
+            if(fabs(then-now) > 0.1)
+            {
+                log("excessive frametime: dt= %lf", then-now);
+            }
+
             g_objects_mtx.lock();
             // look to see if the current player exists
             std::string name(clientMsg.update.name);
@@ -140,11 +179,6 @@ void command_thread()
             }
 
             // Update the ship
-
-            if(fabs(clientMsg.update.force[0]) > 0.0f || fabs(clientMsg.update.force[1]) > 0.0f)
-            {
-                log("force %f %f\n", clientMsg.update.force[0], clientMsg.update.force[1]);
-            }
             pShip->AddForce(Vector3f(clientMsg.update.force[0], clientMsg.update.force[1], clientMsg.update.force[2]));
             pShip->AddTorque(clientMsg.update.torque);
             g_objects_mtx.unlock();
@@ -154,7 +188,6 @@ void command_thread()
             log("got a strange sized message");
         }
         command.send(null_message);
-        log("reply sent");
     }
 }
 

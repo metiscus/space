@@ -42,6 +42,7 @@ struct ClientShipUpdate
 struct ClientMessage
 {
     uint32_t type;
+    uint64_t timestamp;
     union
     {
         ClientShipUpdate update;

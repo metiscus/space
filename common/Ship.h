@@ -22,6 +22,7 @@ public:
 
     const float& GetOrientation() const;
     void AddTorque(float torque);
+    virtual void AddForce(const Vector3f& force);
     float GetTorque() const;
     float GetAngularVelocity() const;
     void ApplyDamage(float dmg);

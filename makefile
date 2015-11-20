@@ -50,4 +50,5 @@ kill:
 test:
 	$(MAKE) && $(MAKE) kill
 	./serverBin&
-	./api_test
+	#./api_test
+	./sdl_client

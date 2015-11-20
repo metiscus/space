@@ -4,13 +4,14 @@
 const float DefaultShield = 100.0f;
 const float DefaultHealth = 100.0f;
 const float DefaultInertia = 1.0f;
+const float DefaultAngularDampening = 0.001;
 
 Ship::Ship(std::string name)
 {
     this->name = name;
     shield = DefaultShield;
     health = DefaultHealth;
-    orientation = 0.0;
+    orientation = 0.0; //test
     angularVelocity = 0.0f;
     torque = 0.0f;
 }
@@ -20,9 +21,14 @@ const float& Ship::GetOrientation() const
     return orientation;
 }
 
+void Ship::AddForce(const Vector3f& force)
+{
+    this->force += force;
+}
+
 void Ship::AddTorque(float torque)
 {
-    torque += torque;
+    this->torque += torque;
 }
 
 float Ship::GetTorque() const
@@ -93,6 +99,7 @@ uint32_t Ship::GetScore() const
          float a = torque / DefaultInertia;
          orientation += angularVelocity * dt + 0.5 * a * dt * dt;
          angularVelocity += dt * a;
+         angularVelocity *= (1.0 - DefaultAngularDampening) * dt;
      }
 
      torque = 0.0f;
@@ -111,7 +118,7 @@ uint32_t Ship::GetScore() const
      message.velocity[0] = vec[0];
      message.velocity[1] = vec[1];
      message.velocity[2] = vec[2];
-     message.orientation     = GetOrientation();
+     message.orientation     = fmodf(GetOrientation(), 360.0f);
      message.angularVelocity = GetAngularVelocity();
      message.health = health;
      message.shield = shield;

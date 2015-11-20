@@ -5,6 +5,8 @@
 #include <SDL2/SDL.h>
 #include <memory>
 #include <cstdarg>
+#include <cmath>
+#include <sys/time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -16,9 +18,14 @@ zmq::context_t* g_context = nullptr;
 void log(const char* pattern, ...);
 SDL_Texture* loadTexture(const std::string &file, SDL_Renderer *ren);
 
+inline float DegToRad(float deg)
+{
+    return deg * M_PI / 180.0f;
+}
+
 //For now just connect to the server on localhost for testing
 //Eventually need to allow a gui to select which server and set player name etc
-int main()
+int main(int argc, char** argv)
 {
     SDL_Init(SDL_INIT_VIDEO);
     g_window                 = SDL_CreateWindow("Space!", 100, 100, 1000, 1000, SDL_WINDOW_SHOWN);
@@ -29,12 +36,16 @@ int main()
         log("couldn't set resolution\n");
     }
 
-    ClientMessage updateMessage;
-    updateMessage.type = PlayerUpdateMsg;
-
-    std::shared_ptr<Ship> pShip  (new Ship("A Ship"));
-    pShip->AddForce(Vector3f(0.0, 0.0, 10.0));
-    pShip->GetClientUpdateMessage(updateMessage.update);
+    std::shared_ptr<Ship> pShip;
+    char name [1000];
+    if(argc == 2)
+    {
+        log("Ship name is :%s", argv[1]);
+        pShip = std::shared_ptr<Ship>(new Ship(argv[1]));
+    }
+    else {
+        pShip = std::shared_ptr<Ship>(new Ship("A Ship"));
+    }
 
     // command connection
     g_context = new zmq::context_t(1);
@@ -54,7 +65,6 @@ int main()
     //- send update to server (if needed)
     //- get an update
     //- draw
-    ServerPlayerUpdateMsg server_update_message;
     SDL_Texture *shipTex = loadTexture("data/ships/0.png", g_renderer);
     while(run && shipTex)
     {
@@ -67,46 +77,71 @@ int main()
             }
             else if(e.type == SDL_KEYDOWN)
             {
+                bool add_force = false;
+                Vector3f force (0.0, 0.0, 0.0);
                 switch (e.key.keysym.sym){
                     case SDLK_a:
-                        pShip->AddForce(Vector3f(-10.0, 0.0, 0.0));
+                        force += Vector3f(-100.0, 0.0, 0.0);
                         break;
                     case SDLK_d:
-                        pShip->AddForce(Vector3f(10.0, 0.0, 0.0));
+                        force += Vector3f(100.0, 0.0, 0.0);
                         break;
                     case SDLK_w:
-                        pShip->AddForce(Vector3f(0.0, 10.0, 0.0));
+                        force += Vector3f(0.0, -100.0, 0.0);
                         break;
                     case SDLK_s:
-                        pShip->AddForce(Vector3f(0.0, -10.0, 0.0));
+                        force += Vector3f(0.0, 100.0, 0.0);
                         break;
+                    case SDLK_e:
+                        pShip->AddTorque(100.0);
+                        break;
+                    case SDLK_q:
+                        pShip->AddTorque(-100.0);
+                        break;
+                }
+
+                //if(add_force == true)
+                {
+                    // the user inputs forces relative to the ship
+                    // we need to transform them in to world axes
+                    float orientation = DegToRad(pShip->GetOrientation());
+                    Vector3f world_force( force[0] * cos(orientation) + force[1] * sin(orientation), -force[0] * sin(orientation) + force[1] * cos(orientation), 0.0);
+                    pShip->AddForce(world_force);
+                    log("force %f %f", world_force[0], world_force[1]);
                 }
             }
             //TODO: implement keyboard callbacks
         }
-        // update ship
 
-        // send update
+        // send update to server
         ClientMessage update_message;
         update_message.type = PlayerUpdateMsg;
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        update_message.timestamp = tv.tv_sec * 1e6 + tv.tv_usec;
         pShip->GetClientUpdateMessage(update_message.update);
         zmq::message_t message(sizeof(update_message));
-        memcpy(message.data(), &updateMessage, sizeof(update_message));
+        memcpy(message.data(), &update_message, sizeof(update_message));
         command.send(message);
 
-        zmq::message_t recvd_msg;
+        zmq::message_t recvd_msg(0);
         command.recv(&recvd_msg);
 
-        // get an update
-        for(int ii=0; ii<2; ++ii)
+        // Get an update message from the server
+        ServerPlayerUpdateMsg server_update_message;
+        zmq::message_t state_msg(sizeof(ServerPlayerUpdateMsg));
+        gamestate.recv(&state_msg, 0);
+        int64_t more = 1;
+        size_t more_size = sizeof(more);
+        while(more_size > 0 && more == 1)
         {
-            zmq::message_t state_msg(2 * sizeof(ServerPlayerUpdateMsg));
-            gamestate.recv(&state_msg);
-            if(state_msg.size() == sizeof(ServerPlayerUpdateMsg))
-            {
-                memcpy(&server_update_message, state_msg.data(), state_msg.size());
-                break;
-            }
+            gamestate.recv(&state_msg, 0);
+            gamestate.getsockopt(ZMQ_RCVMORE, &more, &more_size);
+        }
+
+        if(state_msg.size() == sizeof(ServerPlayerUpdateMsg))
+        {
+            memcpy(&server_update_message, state_msg.data(), state_msg.size());
         }
 
         // draw
@@ -118,6 +153,7 @@ int main()
             dst.y = server_update_message.updates[i].position[1];
             dst.w = 55;
             dst.h = 70;
+            //log("ori: %f", server_update_message.updates[i].orientation);
             SDL_RenderCopyEx(g_renderer, shipTex, nullptr, &dst, server_update_message.updates[i].orientation, nullptr, SDL_FLIP_NONE);
         }
 
@@ -129,7 +165,6 @@ int main()
 
 SDL_Texture* loadTexture(const std::string &file, SDL_Renderer *ren)
 {
-
     SDL_Texture *texture = nullptr;
 
     int width, height, channels;

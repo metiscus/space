@@ -32,7 +32,7 @@ public:
     void            SetIsStatic(bool isStatic);
     void            SetRadius(const float& radius);
     void            SetForce(const Vector3f& force);
-    void            AddForce(const Vector3f& force);
+    virtual void    AddForce(const Vector3f& force);
     void            SetLinearDampening(const float& dampening);
     virtual void    Update(float dt) = 0;
 };
