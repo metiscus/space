@@ -24,7 +24,17 @@ public:
     bool operator==(const Endpoint& rhs) const;
 
     std::shared_ptr<EndpointData> GetData() const;
+
+    const std::string& GetHost() const { return host; }
+    uint16_t GetPort() const  { return port; }
+
+    friend bool operator<(const Endpoint& lhs, const Endpoint& rhs);
 };
+
+bool operator<(const Endpoint& lhs, const Endpoint& rhs);
+
+class NetMessage;
+typedef std::unique_ptr<NetMessage> NetMessagePtr;
 
 class NetMessage
 {
@@ -32,9 +42,10 @@ private:
     Endpoint recipient;
     Endpoint sender;
     std::vector<uint8_t> data;
+    NetMessage(const Endpoint& sender);
 
 public:
-    NetMessage(const Endpoint& sender);
+    static NetMessagePtr Create(const Endpoint& sender);
     virtual ~NetMessage() = default;
 
     NetMessage Reply();
@@ -43,7 +54,7 @@ public:
     void SetSender(const Endpoint& ep);
     const Endpoint& GetRecipient(void) const;
     const Endpoint& GetSender(void) const;
-    void SetData(const uint8_t* data, uint32_t size);
+    void SetData(const void* data, uint32_t size);
     void SetData(std::vector<uint8_t>& data);
     const std::vector<uint8_t>& GetData() const;
 
@@ -55,8 +66,6 @@ public:
 protected:
     friend class Mailbox;
 };
-
-typedef std::unique_ptr<NetMessage> NetMessagePtr;
 
 class Mailbox;
 typedef std::shared_ptr<Mailbox> MailboxPtr;
@@ -70,8 +79,10 @@ private:
     bool isValid;
     uint32_t maxMessageSize;
 
+    Mailbox(const Endpoint& endpoint, uint32_t max_message_size);
+
 public:
-    Mailbox(const Endpoint& endpoint, uint32_t max_message_size = 1024);
+    static MailboxPtr Create(const Endpoint& endpoint, uint32_t max_message_size = 1024);
     ~Mailbox();
 
     static int32_t UpdateMailboxes(std::vector<MailboxPtr>& boxes, int32_t timeout = -1);

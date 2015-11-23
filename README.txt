@@ -17,3 +17,6 @@ All graphical assets were taken from opengameart.org
 - Bullets: Bullet Collection 2 by master484 (Public Domain)
 - Planets: Pixel Planets by master484 (Public Domain)
 - Ships: Space Ship Construction Kit by skorpio (GPLv3)
+
+TODO:
+- A huge TODO is to 

@@ -29,13 +29,24 @@ Endpoint::Endpoint()
     , data(new EndpointData())
 {
     memset(&data->address, 0, sizeof(data->address));
+    data->address.sin_family = AF_INET;
 }
 
 Endpoint::Endpoint(const std::string& host, uint16_t port)
+    : data(new EndpointData())
 {
+    data->address.sin_family = AF_INET;
     this->host = host;
     this->port = port;
-    inet_pton(AF_INET, host.c_str(), &data->address.sin_addr);
+    if(host == "")
+    {
+        data->address.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
+    else
+    {
+        inet_pton(AF_INET, host.c_str(), &data->address.sin_addr);
+    }
+    data->address.sin_port = htons(port);
 }
 
 bool Endpoint::operator==(const Endpoint& rhs) const
@@ -48,7 +59,18 @@ std::shared_ptr<EndpointData> Endpoint::GetData() const
     return data;
 }
 
+bool operator<(const Endpoint& lhs, const Endpoint& rhs)
+{
+
+    return memcmp(&lhs.data->address, &rhs.data->address, sizeof(rhs.data->address)) > 0;
+}
+
 //////////[ NetMessage ]//////////
+NetMessagePtr NetMessage::Create(const Endpoint& sender)
+{
+    return NetMessagePtr(new NetMessage(sender));
+}
+
 NetMessage::NetMessage(const Endpoint& sender)
 {
     this->sender = sender;
@@ -81,11 +103,11 @@ const Endpoint& NetMessage::GetSender(void) const
     return sender;
 }
 
-void NetMessage::SetData(const uint8_t* data, uint32_t size)
+void NetMessage::SetData(const void* data, uint32_t size)
 {
     this->data.reserve(this->data.size() + size);
     this->data.clear();
-    this->data.insert(this->data.end(), data, data + size);
+    this->data.insert(this->data.end(), (uint8_t*)data, (uint8_t*)data + size);
 }
 
 void NetMessage::SetData(std::vector<uint8_t>& data)
@@ -108,23 +130,31 @@ Mailbox::Mailbox(const Endpoint& endpoint, uint32_t max_message_size)
     , maxMessageSize(max_message_size)
 {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    int32_t err = bind(sock, (const sockaddr*)&endpoint.GetData()->address, sizeof(endpoint.GetData()->address));
-    if(err == -1)
+    if(endpoint.GetData()->address.sin_addr.s_addr !=  htonl(INADDR_ANY))
     {
-        fprintf(stderr, "Mailbox failed to bind to endpoint. (%s)\n", strerror(errno));
-        close(sock);
-        sock = -1;
-    }
-    else
-    {
-        isValid = true;
+        int32_t err = bind(sock, (const sockaddr*)&endpoint.GetData()->address, sizeof(endpoint.GetData()->address));
+        if(err == -1)
+        {
+            fprintf(stderr, "Mailbox failed to bind to endpoint. (%s)\n", strerror(errno));
+            close(sock);
+            sock = -1;
+            return;
+        }
+        fprintf(stderr, "bound!\n");
     }
 
+    isValid = true;
     assert(sock != -1);
+}
+
+MailboxPtr Mailbox::Create(const Endpoint& endpoint, uint32_t max_message_size)
+{
+    return MailboxPtr(new Mailbox(endpoint, max_message_size));
 }
 
 Mailbox::~Mailbox()
 {
+    fprintf(stderr, "~Mailbox()\n");
     close(sock);
     sock = -1;
 }
@@ -154,7 +184,7 @@ bool Mailbox::SendMessage(NetMessagePtr& message)
 {
     assert(sock != -1);
     uint32_t ret = sendto(sock, (void*)&message->GetData()[0], message->GetData().size(), 0,
-        (const sockaddr*)&message->GetRecipient().GetData()->address, sizeof(struct sockaddr_in));
+        (const sockaddr*)&(message->GetRecipient().GetData()->address), sizeof(struct sockaddr_in));
     if(ret != message->GetData().size())
     {
         fprintf(stderr, "Failed to send message. %s\n", strerror(errno));
@@ -199,19 +229,25 @@ int32_t Mailbox::UpdateMailboxes(std::vector<MailboxPtr>& boxes, int32_t timeout
     int32_t updated = 0;
     if(timeout == -1)
     {
-        updated = select(highest_fd, &read_set, nullptr, &error_set, nullptr);
+        updated = select(highest_fd + 1, &read_set, nullptr, &error_set, nullptr);
     }
     else{
         struct timeval tv;
         tv.tv_sec  = timeout / (int32_t)1e6;
         tv.tv_usec = timeout % (int32_t)1e6;
-        updated = select(highest_fd, &read_set, nullptr, &error_set, &tv);
+        updated = select(highest_fd + 1, &read_set, nullptr, &error_set, &tv);
+    }
+
+    if(updated == -1)
+    {
+        fprintf(stderr, "select error\n");
+        return 0;
     }
 
     for(auto& box : boxes)
     {
         //check for read
-        if(FD_ISSET(box->GetSocket(), &read_set) == 1)
+        if(FD_ISSET(box->GetSocket(), &read_set) >0)
         {
             // process a read
             NetMessagePtr message(new NetMessage(box->id));
@@ -227,16 +263,21 @@ int32_t Mailbox::UpdateMailboxes(std::vector<MailboxPtr>& boxes, int32_t timeout
 
                 Endpoint sender(std::string(remote_addr_str), ntohs(remote.sin_port));
                 message->SetSender(sender);
+                data.resize(result);
+                message->SetData(data);
+
+                // add message to queue
+                box->messages.push(std::move(message));
             }
             else
             {
-                fprintf(stderr, "Failed to receive message.\n");
+                fprintf(stderr, "Failed to receive message. %s\n", strerror(errno));
             }
         }
         else if(FD_ISSET(box->GetSocket(), &error_set) == 1)
         {
             // connection dropped out
-            box->isValid = false;
+            fprintf(stderr, "saw an error on the last operation on this socket\n");
         }
     }
 

@@ -8,12 +8,13 @@
 #include <cmath>
 #include <sys/time.h>
 
+#include "Network.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 SDL_Window *g_window = nullptr;
 SDL_Renderer *g_renderer = nullptr;
-zmq::context_t* g_context = nullptr;
 
 void log(const char* pattern, ...);
 SDL_Texture* loadTexture(const std::string &file, SDL_Renderer *ren);
@@ -29,7 +30,7 @@ int main(int argc, char** argv)
 {
     SDL_Init(SDL_INIT_VIDEO);
     g_window                 = SDL_CreateWindow("Space!", 100, 100, 1000, 1000, SDL_WINDOW_SHOWN);
-    SDL_Renderer *g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Renderer *g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED /*| SDL_RENDERER_PRESENTVSYNC*/);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if(0 != SDL_RenderSetLogicalSize(g_renderer, WorldSize, WorldSize))
     {
@@ -48,14 +49,13 @@ int main(int argc, char** argv)
     }
 
     // command connection
-    g_context = new zmq::context_t(1);
-    zmq::socket_t command (*g_context, ZMQ_REQ);
-    command.connect("tcp://localhost:5556");
+    Endpoint command_ep(std::string("127.0.0.1"), 0);
+    Endpoint server_ep(std::string("127.0.0.1"), 5556);
+    MailboxPtr command = Mailbox::Create(command_ep, sizeof(ServerPlayerUpdateMsg));
 
-    // game state connection
-    zmq::socket_t gamestate (*g_context, ZMQ_SUB);
-    gamestate.connect("tcp://localhost:5555");
-    gamestate.setsockopt(ZMQ_SUBSCRIBE, &PlayerUpdateMagic, sizeof(PlayerUpdateMagic));
+    // game state message
+    ServerPlayerUpdateMsg server_update_message;
+    memset(&server_update_message, 0, sizeof(server_update_message));
 
     SDL_Event e;
     bool run = true;
@@ -75,7 +75,7 @@ int main(int argc, char** argv)
             {
                 run = false;
             }
-            else if(e.type == SDL_KEYDOWN)
+            else if(e.type == SDL_KEYUP)
             {
                 bool add_force = false;
                 Vector3f force (0.0, 0.0, 0.0);
@@ -120,34 +120,33 @@ int main(int argc, char** argv)
         gettimeofday(&tv, nullptr);
         update_message.timestamp = tv.tv_sec * 1e6 + tv.tv_usec;
         pShip->GetClientUpdateMessage(update_message.update);
-        zmq::message_t message(sizeof(update_message));
-        memcpy(message.data(), &update_message, sizeof(update_message));
-        command.send(message);
+        NetMessagePtr net_update = NetMessage::Create(command_ep);
+        net_update->SetRecipient(server_ep);
+        net_update->SetData(&update_message, sizeof(update_message));
+        //log("Sending update");
+        command->SendMessage(net_update);
+        pShip->Update(0.01);
 
-        zmq::message_t recvd_msg(0);
-        command.recv(&recvd_msg);
-
-        // Get an update message from the server
-        ServerPlayerUpdateMsg server_update_message;
-        zmq::message_t state_msg(sizeof(ServerPlayerUpdateMsg));
-        gamestate.recv(&state_msg, 0);
-        int64_t more = 1;
-        size_t more_size = sizeof(more);
-        while(more_size > 0 && more == 1)
+        std::vector<MailboxPtr> boxes = { command };
+        int32_t updated = Mailbox::UpdateMailboxes(boxes, -1);
+        if(updated > 0)
         {
-            gamestate.recv(&state_msg, 0);
-            gamestate.getsockopt(ZMQ_RCVMORE, &more, &more_size);
+            for(uint32_t i = command->GetMessageCount(); i>0; --i)
+            {
+                NetMessagePtr message = command->GetMessage();
+                memcpy(&server_update_message, &(message->GetData()[0]), message->GetData().size());
+            }
         }
 
-        if(state_msg.size() == sizeof(ServerPlayerUpdateMsg))
+        if((int32_t)update_message.timestamp - (int32_t)server_update_message.timestamp > 10000)
         {
-            memcpy(&server_update_message, state_msg.data(), state_msg.size());
+            log("lag: %llu", (int32_t)update_message.timestamp - (int32_t)server_update_message.timestamp);
         }
 
         // draw
         SDL_RenderClear(g_renderer);
         //log("player count: %d", server_update_message.player_count);
-        for(int i=0; i<server_update_message.player_count; ++i)
+        for(uint32_t i=0; i<server_update_message.player_count; ++i)
         {
             SDL_Rect dst;
             dst.x = server_update_message.updates[i].position[0];
@@ -159,8 +158,6 @@ int main(int argc, char** argv)
         }
 
         SDL_RenderPresent(g_renderer);
-
-        pShip->Update(0.01);
     }
 }
 

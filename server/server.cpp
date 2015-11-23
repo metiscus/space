@@ -1,11 +1,11 @@
 #include "Object.h"
 #include "Ship.h"
+#include "Network.h"
 
 #include <SDL2/SDL.h>
 #include <algorithm>
 #include <cstdio>
 #include <vector>
-#include <zmq.hpp>
 #include <memory>
 #include "Messages.h"
 #include <thread>
@@ -13,13 +13,17 @@
 #include <cstdarg>
 #include <random>
 #include <sys/time.h>
+#include <unordered_map>
+#include <set>
 
 std::mutex g_objects_mtx;
 typedef std::shared_ptr<Object> ObjectPtr;
 std::vector<ObjectPtr> g_objects;
 std::hash<std::string> player_hash_fn;
 
-zmq::context_t* g_context = nullptr;
+std::unordered_map<std::string, uint32_t> g_update_map;
+
+std::set<Endpoint> remotes;
 
 void command_thread();
 
@@ -28,10 +32,9 @@ void log(const char* pattern, ...);
 int main(int argc, char** argv)
 {
     SDL_Init(SDL_INIT_TIMER);
-    g_context = new zmq::context_t(1);
-    zmq::socket_t gamestate (*g_context, ZMQ_PUB);
 
-    gamestate.bind("tcp://*:5555");
+    Endpoint state_ep(std::string("127.0.0.1"), 5555);
+    MailboxPtr gamestate = Mailbox::Create(state_ep);
 
     std::thread t1(command_thread);
 
@@ -102,7 +105,6 @@ int main(int argc, char** argv)
             }
         }
 
-        g_objects_mtx.unlock();
         svr_player_update.player_count = playerCount;
         if(playerCount != playerCountOld)
         {
@@ -110,12 +112,27 @@ int main(int argc, char** argv)
             playerCountOld = playerCount;
         }
 
-        zmq::message_t magic(sizeof(uint32_t));
-        memcpy(magic.data(), &PlayerUpdateMagic, sizeof(uint32_t));
-        gamestate.send(magic, ZMQ_SNDMORE);
-        zmq::message_t net_msg(sizeof(ServerPlayerUpdateMsg));
-        memcpy(net_msg.data(), &svr_player_update, sizeof(svr_player_update));
-        gamestate.send(net_msg);
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        svr_player_update.timestamp = tv.tv_sec * 1e6 + tv.tv_usec;
+
+        //Prepare message for send
+        NetMessagePtr state_message = NetMessage::Create(state_ep);
+        state_message->SetData(&svr_player_update, sizeof(svr_player_update));
+
+        //log("remotes size=%u", remotes.size());
+        for(auto& client_ep : remotes)
+        {
+            //log("sending to %s:%u", client_ep.GetHost().c_str(), client_ep.GetPort());
+            state_message->SetRecipient(client_ep);
+            if(!gamestate->SendMessage(state_message))
+            {
+                log("removing %s:%u as a remote", client_ep.GetHost().c_str(), client_ep.GetPort());
+                remotes.erase(client_ep);
+            }
+        }
+        g_objects_mtx.unlock();
+
     }
 
     t1.join();
@@ -124,8 +141,10 @@ int main(int argc, char** argv)
 
 void command_thread()
 {
-    zmq::socket_t command (*g_context, ZMQ_REP);
-    command.bind("tcp://*:5556");
+    Endpoint command_ep(std::string("127.0.0.1"), 5556);
+    MailboxPtr command = Mailbox::Create(command_ep);
+    std::vector<MailboxPtr> boxes;
+    boxes.push_back(command);
 
     log("running command thread");
 
@@ -134,63 +153,67 @@ void command_thread()
 
     while(true)
     {
-        zmq::message_t null_message(0);
-        static uint32_t serial = 0;
-        //log("calling receive");
-        zmq::message_t message(sizeof(ClientMessage));
-        command.recv(&message);
-        if(message.size() == sizeof(ClientMessage))
+        SDL_Delay(1);
+
+        while(0 != Mailbox::UpdateMailboxes(boxes, 800));
+        //fprintf(stderr, "message count = %u\n", command->GetMessageCount());
+        for(uint32_t messageCount = command->GetMessageCount(); messageCount>0; --messageCount)
         {
-            ClientMessage clientMsg;
-            memcpy(&clientMsg, message.data(), sizeof(ClientMessage));
-            //log("received a client message of type (%u)", clientMsg.type);
+            NetMessagePtr message = command->GetMessage();
 
-            struct timeval tv;
-            gettimeofday(&tv, nullptr);
-            double now  = tv.tv_sec + (double)tv.tv_usec / 1e6;
-            double then = (double)clientMsg.timestamp / 1e6;
-            if(fabs(then-now) > 0.1)
+            if(message->GetData().size() == sizeof(ClientMessage))
             {
-                log("excessive frametime: dt= %lf", then-now);
-            }
+                ClientMessage *clientMsg = (ClientMessage*)&(message->GetData()[0]);
+                //log("received a client message of type (%u)", clientMsg->type);
 
-            g_objects_mtx.lock();
-            // look to see if the current player exists
-            std::string name(clientMsg.update.name);
-            Ship* pShip = nullptr;
-            for(auto obj : g_objects)
-            {
-                pShip = dynamic_cast<Ship*>(obj.get());
-                if(pShip && name == pShip->GetName())
+                g_objects_mtx.lock();
+                remotes.insert(message->GetSender());
+
+                // look to see if the current player exists
+                std::string name(clientMsg->update.name);
+                Ship* pShip = nullptr;
+                for(auto obj : g_objects)
                 {
-                    break;
+                    pShip = dynamic_cast<Ship*>(obj.get());
+                    if(pShip && name == pShip->GetName())
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        pShip = nullptr;
+                    }
                 }
-                else
+
+                // Ship was not in list
+                if(!pShip)
                 {
-                    pShip = nullptr;
+                    pShip = new Ship(name);
+                    g_objects.push_back(ObjectPtr(pShip));
+                    // Randomize the start locations of new ships
+                    std::uniform_real_distribution<> dis(0.0, WorldSize * 0.8);
+                    pShip->SetPosition(Vector3f(dis(gen), dis(gen), 0.0));
                 }
-            }
 
-            // Ship was not in list
-            if(!pShip)
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                double now  = tv.tv_sec + (double)tv.tv_usec / 1e6;
+                double then = (double)clientMsg->timestamp / 1e6;
+                if((now-then) > 0.012)
+                {
+                    log("excessive frametime: dt= %lf", now-then);
+                }
+
+                // Update the ship
+                pShip->AddForce(Vector3f(clientMsg->update.force[0], clientMsg->update.force[1], clientMsg->update.force[2]));
+                pShip->AddTorque(clientMsg->update.torque);
+                g_objects_mtx.unlock();
+            }
+            else
             {
-                pShip = new Ship(name);
-                g_objects.push_back(ObjectPtr(pShip));
-                // Randomize the start locations of new ships
-                std::uniform_real_distribution<> dis(0.0, WorldSize * 0.8);
-                pShip->SetPosition(Vector3f(dis(gen), dis(gen), 0.0));
+                log("got a strange sized message of size: %u", message->GetData().size());
             }
-
-            // Update the ship
-            pShip->AddForce(Vector3f(clientMsg.update.force[0], clientMsg.update.force[1], clientMsg.update.force[2]));
-            pShip->AddTorque(clientMsg.update.torque);
-            g_objects_mtx.unlock();
         }
-        else
-        {
-            log("got a strange sized message");
-        }
-        command.send(null_message);
     }
 }
 

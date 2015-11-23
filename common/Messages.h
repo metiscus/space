@@ -21,6 +21,7 @@ const uint32_t PlayerUpdateMagic = 0x00010203;
 struct ServerPlayerUpdateMsg
 {
     uint32_t player_count;
+    uint32_t timestamp;
     ServerShipUpdate updates[MaxPlayerCount];
 };
 
