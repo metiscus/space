@@ -18,7 +18,8 @@ default: libcommon.a serverBin api_test sdl_client
 
 COMMON_SRC =\
 	common/Object.h common/Object.cpp\
-	common/Ship.h common/Ship.cpp
+	common/Ship.h common/Ship.cpp\
+	common/Network.h common/Network.cpp\
 
 COMMON_CPP = $(filter %.cpp,$(COMMON_SRC))
 COMMON_OBJ = $(COMMON_CPP:.cpp=.o)
