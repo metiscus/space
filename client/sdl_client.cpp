@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 {
     SDL_Init(SDL_INIT_VIDEO);
     g_window                 = SDL_CreateWindow("Space!", 100, 100, 1000, 1000, SDL_WINDOW_SHOWN);
-    SDL_Renderer *g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Renderer *g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if(0 != SDL_RenderSetLogicalSize(g_renderer, WorldSize, WorldSize))
     {
