@@ -37,7 +37,6 @@ int main(int argc, char** argv)
     }
 
     std::shared_ptr<Ship> pShip;
-    char name [1000];
     if(argc == 2)
     {
         log("Ship name is :%s", argv[1]);
